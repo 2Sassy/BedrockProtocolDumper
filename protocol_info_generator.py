@@ -6,13 +6,11 @@ def split_upper(string):
     return filter(None, re.split("([A-Z][^A-Z]*)", string))
 
 def rchop(string, substring):
-    if string.endswith(substring):
-        return string[:-len(substring)]
-    return string
+    return string[:-len(substring)] if string.endswith(substring) else string
 
 def generate_new_packet_stubs(out, resource_path, packets_dir):
     names = out.values()
-    with open(resource_path + 'templates' + os.sep + 'DataPacketTemplate.php') as template_file:
+    with open(f'{resource_path}templates{os.sep}DataPacketTemplate.php') as template_file:
         packet_template = template_file.read()
 
     # Check existence of old and new packets and create stubs for new stuff
@@ -44,13 +42,13 @@ def check_removed_packets(out, packets_dir):
     for j in existing:
         if j.endswith('.php'):
             classname = j.split('.php')[0]
-            if not 'Packet' in classname or classname in class_ignorelist:
+            if 'Packet' not in classname or classname in class_ignorelist:
                 continue
-            if not classname in names:
+            if classname not in names:
                 print('!!! Removed packet:', classname)
 
 def generate_protocol_info(out, version, resource_path, packets_dir):
-    with open(resource_path + 'templates' + os.sep + 'ProtocolInfoTemplate.php') as template_file:
+    with open(f'{resource_path}templates{os.sep}ProtocolInfoTemplate.php') as template_file:
         protocol_info_template = template_file.read()
 
     consts = ''
@@ -64,28 +62,27 @@ def generate_protocol_info(out, version, resource_path, packets_dir):
             continue
         consts += ('\tpublic const %s = %s;\n' % ('_'.join(split_upper(name)).upper(), format(i, '#04x')))
 
-    with open(packets_dir + 'ProtocolInfo.php', 'w') as out_file:
+    with open(f'{packets_dir}ProtocolInfo.php', 'w') as out_file:
         out_file.write(protocol_info_template % (version.protocol, str(version.game_version()), str(version.game_version_network()), consts))
 
     print('Recreated ProtocolInfo')
 
 def generate_packet_pool(out, resource_path, packets_dir):
-    with open(resource_path + 'templates' + os.sep + 'PacketPoolTemplate.php') as template_file:
+    with open(f'{resource_path}templates{os.sep}PacketPoolTemplate.php') as template_file:
         pool_template = template_file.read()
 
-    entries = ''
-    for i in out.values():
-        entries += ('\n\t\t$this->registerPacket(new %s());' % i)
-
+    entries = ''.join(
+        ('\n\t\t$this->registerPacket(new %s());' % i) for i in out.values()
+    )
     pool_size = int(ceil(len(out) / 256.0) * 256)
-    with open(packets_dir + 'PacketPool.php', 'w') as out_file:
+    with open(f'{packets_dir}PacketPool.php', 'w') as out_file:
         out_file.write(pool_template % (pool_size, entries))
 
     print('Recreated PacketPool')
 
 #PacketHandler
 def generate_packet_handler(out, resource_path, packets_dir):
-    with open(resource_path + 'templates' + os.sep + 'PacketHandlerDefaultImplTrait.php', 'rb') as template_file:
+    with open(f'{resource_path}templates{os.sep}PacketHandlerDefaultImplTrait.php', 'rb') as template_file:
         packet_handler_template = template_file.read()
     functions = []
 
@@ -104,7 +101,7 @@ def generate_packet_handler(out, resource_path, packets_dir):
 #PacketHandler
 
 def generate_packet_handler_interface(out, resource_path, packets_dir):
-    with open(resource_path + 'templates' + os.sep + 'PacketHandlerInterfaceTemplate.php', 'rb') as template_file:
+    with open(f'{resource_path}templates{os.sep}PacketHandlerInterfaceTemplate.php', 'rb') as template_file:
         packet_handler_template = template_file.read()
     functions = []
 
@@ -114,7 +111,7 @@ def generate_packet_handler_interface(out, resource_path, packets_dir):
         base_name = rchop(i, 'Packet')
         functions.append(function_template % (base_name, i))
 
-    with open(packets_dir + 'PacketHandlerInterface.php', 'wb') as out_file:
+    with open(f'{packets_dir}PacketHandlerInterface.php', 'wb') as out_file:
         out_file.write(packet_handler_template % (bytes('\n\n'.join(functions), "utf8")))
 
     print('Recreated packet handler interface')
