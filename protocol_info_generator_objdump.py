@@ -30,16 +30,27 @@ rodata_offset_regex = re.compile(r"^\s*\d+\s+\.rodata\s+[\da-f]+\s+[\da-f]+\s+([
 
 def get_value_at(file, offset, size, format):
     file = open(file, 'rb')
-    if offset == None or offset < 0:
+    if offset is None or offset < 0:
         return -1
     file.seek(offset)
     return struct.unpack(format, file.read(size))[0]
 
 def stop_address(start, size):
-    return hex(int('0x' + start, 16) + int('0x' + size, 16))
+    return hex(int(f'0x{start}', 16) + int(f'0x{size}', 16))
 
 def dump_packet_id(start, size, symbol):
-    proc = subprocess.Popen(['objdump', '--disassemble', '--demangle', '--section=.text', '--start-address=0x' + start, '--stop-address=' + stop_address(start, size), bds_path], stdout=subprocess.PIPE)
+    proc = subprocess.Popen(
+        [
+            'objdump',
+            '--disassemble',
+            '--demangle',
+            '--section=.text',
+            f'--start-address=0x{start}',
+            f'--stop-address={stop_address(start, size)}',
+            bds_path,
+        ],
+        stdout=subprocess.PIPE,
+    )
     lines = []
     while True:
         line = proc.stdout.readline()
@@ -49,19 +60,17 @@ def dump_packet_id(start, size, symbol):
         parts = line.split(b'mov')
         if len(parts) < 2:
             continue
-        matches = re.match(asm_regex, parts[1].decode())
-        if not matches:
-            continue
-        return int(matches.groups()[0], 16)
+        if matches := re.match(asm_regex, parts[1].decode()):
+            return int(matches.groups()[0], 16)
     for l in lines:
         print(l)
-    raise Exception("Packet ID not found for symbol " + symbol)
+    raise Exception(f"Packet ID not found for symbol {symbol}")
 
 def dump_packet_id_threaded(start, size, symbol, packet_name, packets, packets_lock):
     id = dump_packet_id(start, size, symbol)
     packets_lock.acquire()
     packets[id] = packet_name
-    print('Found ' + packet_name + ' ' + hex(id))
+    print(f'Found {packet_name} {hex(id)}')
     packets_lock.release()
 
 def parse_symbol(symbol):
@@ -114,10 +123,9 @@ def get_rodata_file_shift():
         line = proc.stdout.readline()
         if not line:
             break
-        matches = re.match(rodata_offset_regex, line.strip().decode())
-        if matches:
-            lma = int('0x' + matches.groups()[0], 16)
-            physical_address = int('0x' + matches.groups()[1], 16)
+        if matches := re.match(rodata_offset_regex, line.strip().decode()):
+            lma = int(f'0x{matches.groups()[0]}', 16)
+            physical_address = int(f'0x{matches.groups()[1]}', 16)
             return physical_address - lma
     raise Exception("Unable to calculate offset for .rodata")
 
@@ -136,17 +144,50 @@ def dump_version():
             break
         start, _, _, size, symbol = parse_symbol(symbol)
         if 'MajorVersion' in symbol:
-            major = get_value_at(bds_path, int('0x' + start, 16) + rodata_shift, int('0x' + size, 16), 'i')
+            major = get_value_at(
+                bds_path,
+                int(f'0x{start}', 16) + rodata_shift,
+                int(f'0x{size}', 16),
+                'i',
+            )
         elif 'MinorVersion' in symbol:
-            minor = get_value_at(bds_path, int('0x' + start, 16) + rodata_shift, int('0x' + size, 16), 'i')
+            minor = get_value_at(
+                bds_path,
+                int(f'0x{start}', 16) + rodata_shift,
+                int(f'0x{size}', 16),
+                'i',
+            )
         elif 'PatchVersion' in symbol:
-            patch = get_value_at(bds_path, int('0x' + start, 16) + rodata_shift, int('0x' + size, 16), 'i')
+            patch = get_value_at(
+                bds_path,
+                int(f'0x{start}', 16) + rodata_shift,
+                int(f'0x{size}', 16),
+                'i',
+            )
         elif 'RevisionVersion' in symbol:
-            revision = get_value_at(bds_path, int('0x' + start, 16) + rodata_shift, int('0x' + size, 16), 'i')
+            revision = get_value_at(
+                bds_path,
+                int(f'0x{start}', 16) + rodata_shift,
+                int(f'0x{size}', 16),
+                'i',
+            )
         elif 'IsBeta' in symbol:
-            beta = get_value_at(bds_path, int('0x' + start, 16) + rodata_shift, int('0x' + size, 16), 'B') == 1
+            beta = (
+                get_value_at(
+                    bds_path,
+                    int(f'0x{start}', 16) + rodata_shift,
+                    int(f'0x{size}', 16),
+                    'B',
+                )
+                == 1
+            )
         elif 'NetworkProtocolVersion' in symbol:
-            protocol = get_value_at(bds_path, int('0x' + start, 16) + rodata_shift, int('0x' + size, 16), 'i')
+            protocol = get_value_at(
+                bds_path,
+                int(f'0x{start}', 16) + rodata_shift,
+                int(f'0x{size}', 16),
+                'i',
+            )
 
     print(major, minor, patch, revision, beta, protocol)
     return Version(major, minor, patch, revision, beta, protocol)
